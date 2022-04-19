@@ -1,0 +1,5 @@
+keyserver.ubuntu.com
+keys.openpgp.org
+keyserver.pgp.com
+ha.pool.sks-keyservers.net
+hkp://p80.pool.sks-keyservers.net:80
