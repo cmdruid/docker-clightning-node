@@ -9,6 +9,10 @@ A simple reference implementation of clightning, with Tor and REST API enabled.
 ```
 git clone *this repository url*
 cd clightning-node
+
+# In bin/, add bitcoin and clightning binaries. More info below.
+# In config/, rename sample.lightningd.conf to lightningd.conf, add your RPC credentials
+
 ./start.sh
 ```
 
