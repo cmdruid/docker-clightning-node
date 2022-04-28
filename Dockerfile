@@ -2,26 +2,32 @@ FROM debian:bullseye-slim
 
 ENV PATH="/root/.local/bin:$PATH"
 
-## Configure directories.
-RUN mkdir -p /root/app /data/certs /data/tor /data/lightning/bitcoin /root/.lightning
-
 ## Install dependencies.
 RUN apt-get update && apt-get install -y \
   curl git gnupg libsodium-dev procps qrencode socat xxd tor
 
-# libsodium-dev libpq
-COPY bin/* /tmp/
+## Configure directories.
+RUN mkdir -p /root/app /root/.lightning /var/lib/tor /var/log/tor
+
+COPY build/out/* /tmp/bin/
 WORKDIR /tmp
 
-## Install bitcoin-cli binary.
-RUN tar --wildcards --strip-components=1 -C /usr -xf \
-  bitcoin*.tar.gz bitcoin*/bin/bitcoin-cli \
-  && which bitcoin-cli | grep bitcoin-cli
+## Unpack and install binaries.
+RUN for file in /tmp/bin/*; do \
+  if ! [ -z "$(echo $file | grep .tar.)" ]; then \
+    echo "Unpacking $file to /usr ..." \
+    && tar --wildcards --strip-components=1 -C /usr -xf $file \
+  ; else \
+    echo "Moving $file to /usr/bin ..." \
+    && chmod +x $file && mv $file /usr/bin/ \
+  ; fi \
+; done
 
-## Install clightning binaries.
-RUN tar --wildcards --strip-components=1 -C /usr -xf \
-clightning*.tar.gz \
-  && which lightningd | grep lightningd
+## Clean up temp files.
+RUN rm -rf /tmp/* /var/tmp/*
+
+## Uncomment this if you also want to wipe all repository lists.
+#RUN rm -rf /var/lib/apt/lists/*
 
 ## Install Node.
 RUN curl -fsSL https://deb.nodesource.com/setup_17.x | bash - \
@@ -30,16 +36,11 @@ RUN curl -fsSL https://deb.nodesource.com/setup_17.x | bash - \
 ## Install node packages.
 RUN npm install -g npm
 
+WORKDIR /root
+
 ## Install RTL REST API.
-RUN cd /root/app \
-  && git clone https://github.com/Ride-The-Lightning/c-lightning-REST.git rest-api \
-  && cd rest-api && npm install
-
-## Clean up temp files.
-RUN rm -rf /tmp/* /var/tmp/*
-
-## Uncomment this if you also want to wipe all repository lists.
-#RUN rm -rf /var/lib/apt/lists/*
+RUN git clone https://github.com/Ride-The-Lightning/c-lightning-REST.git rest-api
+RUN cd rest-api && npm install
 
 ## Copy configuration files.
 COPY config/torrc /etc/tor/
@@ -49,13 +50,10 @@ COPY config/lightningd.conf /root/.lightning/config
 RUN addgroup tor \
   && adduser --system --no-create-home tor \
   && adduser tor tor \
-  && chown -R tor:tor /data/tor /var/log/tor
+  && chown -R tor:tor /var/lib/tor /var/log/tor
 
 ## Setup entrypoint for image.
-COPY startup/* /root/
-RUN chmod +x /root/*
+COPY run /root/run
+RUN chmod +x /root/run/*
 
-WORKDIR /root
-
-## Clone RTL REST 
-ENTRYPOINT [ "./entrypoint.sh" ]
+ENTRYPOINT [ "/root/run/entrypoint.sh" ]
